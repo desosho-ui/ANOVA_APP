@@ -1,1 +1,1325 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two-Way ANOVA App v7</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstat/1.9.6/jstat.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#333;font-size:14px}
+header{background:#2c3e50;color:#fff;padding:20px 40px}
+header h1{font-size:22px;font-weight:700}
+header p{font-size:13px;opacity:.7;margin-top:4px}
+.container{max-width:1060px;margin:30px auto;padding:0 20px}
+.card{background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.08);padding:26px;margin-bottom:22px}
+.card h2{font-size:15px;font-weight:700;color:#2c3e50;margin-bottom:16px;border-left:4px solid #3498db;padding-left:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.step{display:inline-flex;align-items:center;justify-content:center;background:#3498db;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;flex-shrink:0}
 
+/* Upload */
+#dropzone{border:2.5px dashed #b0c4de;border-radius:10px;padding:46px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#f8fbff;color:#666}
+#dropzone.drag-over{border-color:#3498db;background:#eaf4fb}
+#dropzone .icon{font-size:40px;margin-bottom:10px}
+#dropzone p{font-size:15px}
+#dropzone small{color:#999;font-size:12px}
+#fileInput{display:none}
+
+/* Design selector */
+.design-selector>span{font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+.design-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.design-opt{display:flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;background:#fff}
+.design-opt:hover{border-color:#3498db;background:#eaf4fb}
+.design-opt.selected{border-color:#3498db;background:#eaf4fb;font-weight:600}
+.design-opt input{accent-color:#3498db}
+
+/* Hint box */
+.hint-box{background:#fffde7;border-left:3px solid #f9a825;border-radius:4px;padding:10px 14px;font-size:12px;color:#555;margin-bottom:16px;line-height:1.7}
+.hint-box code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:11.5px}
+
+/* Variable rows */
+.select-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.select-row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.field-label{font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+select,input[type=text],input[type=number]{width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;color:#333}
+input[type=number]{width:100px}
+
+/* Level badges */
+.level-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.lbadge{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:12px;padding:3px 10px;font-size:12px;font-weight:600}
+.within-preview{background:#f4f6f9;border-radius:6px;padding:12px 14px;font-size:12.5px;margin-top:10px;line-height:2}
+.within-preview strong{color:#2c3e50}
+
+#runBtn{width:100%;padding:13px;background:#2980b9;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s;margin-top:14px}
+#runBtn:hover{background:#1a6fa0}
+
+/* Tables */
+.section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}
+thead tr{border-top:2px solid #222;border-bottom:1.5px solid #222}
+tbody tr:last-child{border-bottom:2px solid #222}
+th{padding:8px 10px;font-weight:700;text-align:left;background:#fff}
+td{padding:6px 10px}
+.num{text-align:right}
+.sig{color:#c0392b;font-weight:700}
+.bold{font-weight:700}
+tr.subtotal td{border-top:1px solid #ccc;font-style:italic;color:#666}
+tr.section-row td{background:#f4f6f9;font-weight:700;font-size:12px;color:#555;border-top:1px solid #ccc}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
+.badge-pass{background:#d5f5e3;color:#1e8449}
+.badge-fail{background:#fdecea;color:#c0392b}
+.badge-warn{background:#fef9e7;color:#b7950b}
+
+.apa-box{background:#f8f9fa;border-left:4px solid #27ae60;padding:16px 20px;border-radius:4px;font-size:13.5px;line-height:2;white-space:pre-wrap}
+.apa-box em{font-style:italic}
+
+.copy-btn{float:right;padding:4px 12px;font-size:11px;background:#ecf0f1;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-weight:600}
+.copy-btn:hover{background:#d5dbdb}
+.excel-btn{float:right;padding:4px 12px;font-size:11px;background:#e8f5e9;border:1px solid #81c784;border-radius:4px;cursor:pointer;font-weight:600;color:#2e7d32;margin-left:6px}
+.excel-btn:hover{background:#c8e6c9}
+
+.assump-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.assump-item{background:#f8f9fa;border-radius:6px;padding:14px 16px}
+.assump-item h4{font-size:12px;font-weight:700;margin-bottom:6px;color:#555}
+.assump-item p{font-size:13px;line-height:1.6}
+.assump-full{grid-column:1/-1}
+
+.alert{background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:14px}
+.alert-info{background:#eaf4fb;border-left:4px solid #3498db;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:14px}
+.posthoc-wrap{overflow-x:auto}
+#results{display:none}
+.dl-bar{text-align:center;margin-top:16px}
+.dl-btn{padding:8px 22px;font-size:13px;background:#2980b9;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700}
+.dl-btn:hover{background:#1a6fa0}
+
+/* BTS */
+.bts-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.bts-tab{padding:6px 16px;border:1.5px solid #3498db;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#3498db;transition:all .15s}
+.bts-tab.active{background:#3498db;color:#fff}
+.bts-panel{display:none}.bts-panel.active{display:block}
+.formula-block{background:#f4f6f9;border-radius:6px;padding:14px 18px;margin-bottom:14px;font-size:13px;line-height:1.9}
+.formula-block h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:8px}
+.formula-block .formula{font-family:'Courier New',monospace;background:#eaecf0;padding:6px 10px;border-radius:4px;display:inline-block;margin:4px 0;font-size:12.5px}
+.formula-block .computed{color:#1a5276;font-weight:700}
+pre.code-block{background:#1e2330;color:#abb2bf;padding:18px;border-radius:8px;font-size:12.5px;line-height:1.7;overflow-x:auto;margin-bottom:12px}
+pre.code-block .kw{color:#c678dd}pre.code-block .fn{color:#61afef}pre.code-block .str{color:#98c379}
+pre.code-block .cm{color:#5c6370;font-style:italic}pre.code-block .nm{color:#e5c07b}
+.copy-code-btn{float:right;padding:3px 10px;font-size:11px;background:#3d4051;border:none;border-radius:4px;color:#abb2bf;cursor:pointer;margin-top:-4px}
+.copy-code-btn:hover{background:#5c6370}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📊 Two-Way ANOVA App <span style="font-size:14px;opacity:.7;font-weight:400">v7</span></h1>
+  <p>対応なし・対応あり（RM）・混合デザイン対応 ／ Mauchly球面性検定（GG・HF補正）実装 ／ Interaction Plot に±SEエラーバー追加 ／ APA 7完全出力</p>
+</header>
+
+<div class="container">
+
+  <!-- Step 1: Upload -->
+  <div class="card">
+    <h2><span class="step">1</span>ファイルをアップロード</h2>
+    <div id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📂</div>
+      <p>CSVまたはExcel (.xlsx) をここにドラッグ＆ドロップ</p>
+      <small>またはクリックしてファイルを選択</small>
+    </div>
+    <input type="file" id="fileInput" accept=".csv,.xlsx">
+    <div id="fileInfo" style="margin-top:12px;font-size:13px;color:#27ae60"></div>
+  </div>
+
+  <!-- Step 2: Design & Variables -->
+  <div class="card" id="varCard" style="display:none">
+    <h2><span class="step">2</span>デザインと変数を選択</h2>
+
+    <div class="design-selector">
+      <span>分析デザイン</span>
+      <div class="design-options">
+        <label class="design-opt selected" id="opt-between">
+          <input type="radio" name="design" value="between" checked onchange="updateDesignUI()">
+          対応なし（Between × Between）
+        </label>
+        <label class="design-opt" id="opt-mixed">
+          <input type="radio" name="design" value="mixed" onchange="updateDesignUI()">
+          混合（Between × Within）
+        </label>
+        <label class="design-opt" id="opt-within">
+          <input type="radio" name="design" value="within" onchange="updateDesignUI()">
+          対応あり（Within × Within）
+        </label>
+      </div>
+    </div>
+
+    <!-- Between×Between -->
+    <div id="ui-between">
+      <div class="hint-box">
+        📋 <strong>Long format（縦型）</strong> — 各行が1観測値<br>
+        例: <code>Group</code>（因子1） <code>Condition</code>（因子2） <code>Score</code>（従属変数）— 各参加者が1行のみ
+      </div>
+      <div class="select-row">
+        <div><label class="field-label">従属変数（数値）</label><select id="dvSel"></select></div>
+        <div><label class="field-label">第1因子（Factor A）</label><select id="faSel"></select></div>
+        <div><label class="field-label">第2因子（Factor B）</label><select id="fbSel"></select></div>
+      </div>
+    </div>
+
+    <!-- Mixed (Between × Within) -->
+    <div id="ui-mixed" style="display:none">
+      <div class="hint-box">
+        📋 <strong>Wide format（横型）— Mizumoto先生と同じ形式</strong><br>
+        各行が1参加者。<strong>Between因子列</strong>（グループ番号など）+ <strong>Within各水準の列</strong>（Pre/Post/Delayedなど）<br>
+        例: <code>Method&nbsp;&nbsp;Pre&nbsp;&nbsp;Post&nbsp;&nbsp;Delayed</code><br>
+        　　<code>1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;31&nbsp;&nbsp;&nbsp;48&nbsp;&nbsp;&nbsp;&nbsp;30</code><br>
+        　　<code>2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;36&nbsp;&nbsp;&nbsp;42&nbsp;&nbsp;&nbsp;&nbsp;31</code>
+      </div>
+      <div class="select-row-2">
+        <div>
+          <label class="field-label">Between因子の列</label>
+          <select id="mixedBetweenSel" onchange="updateMixedPreview()"></select>
+        </div>
+        <div>
+          <label class="field-label">従属変数の列（Within水準）</label>
+          <div id="mixedWithinBadges" class="level-badges" style="margin-top:9px"></div>
+        </div>
+      </div>
+      <div class="select-row-2">
+        <div>
+          <label class="field-label">Between因子の名前（任意）</label>
+          <input type="text" id="mixedFaName" placeholder="例: Method, Group...">
+        </div>
+        <div>
+          <label class="field-label">Within因子の名前（任意）</label>
+          <input type="text" id="mixedFbName" placeholder="例: Time, Condition...">
+        </div>
+      </div>
+    </div>
+
+    <!-- Within × Within -->
+    <div id="ui-within" style="display:none">
+      <div class="hint-box">
+        📋 <strong>Wide format（横型）— Mizumoto先生と同じ形式</strong><br>
+        各行が1参加者。列の順番: <strong>A1のB全水準, A2のB全水準, ...</strong><br>
+        例（A=2水準, B=3水準）: <code>TypeA.Pre&nbsp;&nbsp;TypeA.Post&nbsp;&nbsp;TypeA.Delayed&nbsp;&nbsp;TypeB.Pre&nbsp;&nbsp;TypeB.Post&nbsp;&nbsp;TypeB.Delayed</code>
+      </div>
+      <div class="select-row">
+        <div>
+          <label class="field-label">Factor A の名前</label>
+          <input type="text" id="withinFaName" placeholder="例: Type, Method..." oninput="updateWithinPreview()">
+        </div>
+        <div>
+          <label class="field-label">Factor A の水準数</label>
+          <input type="number" id="withinALevels" value="2" min="2" max="10" oninput="updateWithinPreview()">
+        </div>
+      </div>
+      <div class="select-row">
+        <div>
+          <label class="field-label">Factor B の名前</label>
+          <input type="text" id="withinFbName" placeholder="例: Time, Test..." oninput="updateWithinPreview()">
+        </div>
+        <div>
+          <label class="field-label">Factor B の水準数</label>
+          <input type="number" id="withinBLevels" value="3" min="2" max="10" oninput="updateWithinPreview()">
+        </div>
+      </div>
+      <div id="withinPreview" class="within-preview"></div>
+    </div>
+
+    <button id="runBtn" onclick="runAnova()">🔬 分析を実行</button>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="card"><h2>前提条件の確認</h2><div class="assump-grid" id="assumpGrid"></div></div>
+    <div class="card">
+      <h2><span class="step">3</span>記述統計（M, SD, 95% CI, n）<button class="excel-btn" onclick="copyTableAsExcel('descTable')">📊 Excelにコピー</button></h2>
+      <div id="descTable"></div>
+    </div>
+    <div class="card">
+      <h2>Two-Way ANOVA テーブル<button class="excel-btn" onclick="copyTableAsExcel('anovaTable')">📊 Excelにコピー</button></h2>
+      <div id="anovaTable"></div>
+      <p style="font-size:11px;color:#888;margin-top:8px">η²ₚ = partial eta-squared; ω²ₚ = partial omega-squared（バイアス補正済み）</p>
+    </div>
+    <div class="card">
+      <h2>Post-hoc 検定（Bonferroni補正）<button class="excel-btn" onclick="copyTableAsExcel('posthocContent')">📊 Excelにコピー</button></h2>
+      <div id="posthocContent"></div>
+    </div>
+    <div class="card">
+      <h2>単純主効果分析（Simple Main Effects）<button class="excel-btn" onclick="copyTableAsExcel('smeContent')">📊 Excelにコピー</button></h2>
+      <div id="smeContent"></div>
+    </div>
+    <div class="card">
+      <h2>APA 7 結果文 <button class="copy-btn" onclick="copyAPA()">📋 コピー</button></h2>
+      <div class="apa-box" id="apaText"></div>
+    </div>
+    <div class="card">
+      <h2>🔍 Behind the Scenes</h2>
+      <div id="btsContent"></div>
+    </div>
+    <div class="card">
+      <h2>Figure 1 — Interaction Plot</h2>
+      <div style="position:relative;height:480px;width:100%"><canvas id="lineChart"></canvas></div>
+      <div class="dl-bar" style="margin-top:14px">
+        <button class="dl-btn" onclick="downloadChart('lineChart','Figure1_InteractionPlot.png')">📥 Figure 1 をダウンロード（PNG）</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Figure 2 — Mean (±SE) Bar Chart</h2>
+      <div style="position:relative;height:480px;width:100%"><canvas id="barChart"></canvas></div>
+      <div class="dl-bar" style="margin-top:14px">
+        <button class="dl-btn" onclick="downloadChart('barChart','Figure2_BarChart.png')">📥 Figure 2 をダウンロード（PNG）</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  GLOBALS
+// ═══════════════════════════════════════════════════════
+let G = { data:[], cols:[], numCols:[], catCols:[] };
+let lineCI = null, barCI = null;
+
+// ═══════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over')});
+dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('drag-over');handleFile(e.dataTransfer.files[0])});
+document.getElementById('fileInput').addEventListener('change', e=>handleFile(e.target.files[0]));
+
+function handleFile(file){
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='csv') Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>setupData(r.data,file.name)});
+  else if(ext==='xlsx'){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      setupData(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]),file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  } else alert('CSVまたはExcel(.xlsx)を選択してください');
+}
+
+function setupData(data, fname){
+  G.data = data;
+  G.cols = Object.keys(data[0]);
+  G.numCols = G.cols.filter(c=>data.slice(0,30).every(r=>r[c]!==''&&r[c]!==undefined&&!isNaN(parseFloat(r[c]))));
+  G.catCols = G.cols.filter(c=>!G.numCols.includes(c));
+  document.getElementById('fileInfo').textContent=`✅ ${fname}（${data.length}行 × ${G.cols.length}列）`;
+  populateSel('dvSel', G.numCols.length?G.numCols:G.cols);
+  populateSel('faSel', G.catCols.length?G.catCols:G.cols);
+  populateSel('fbSel', G.catCols.length>1?G.catCols.slice(1):G.cols);
+  populateSel('mixedBetweenSel', G.cols);
+  document.getElementById('varCard').style.display='block';
+  updateDesignUI();
+}
+function populateSel(id,opts){
+  document.getElementById(id).innerHTML=opts.map(o=>`<option value="${o}">${o}</option>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  DESIGN UI
+// ═══════════════════════════════════════════════════════
+function updateDesignUI(){
+  const design = document.querySelector('input[name="design"]:checked').value;
+  ['between','mixed','within'].forEach(d=>{
+    document.getElementById(`opt-${d}`).classList.toggle('selected',d===design);
+    document.getElementById(`ui-${d}`).style.display = d===design?'block':'none';
+  });
+  if(design==='mixed') updateMixedPreview();
+  if(design==='within') updateWithinPreview();
+}
+
+function updateMixedPreview(){
+  const betweenCol = document.getElementById('mixedBetweenSel').value;
+  const withinCols = G.numCols.filter(c=>c!==betweenCol);
+  const badges = withinCols.length
+    ? withinCols.map(c=>`<span class="lbadge">${c}</span>`).join('')
+    : '<span style="color:#999;font-size:12px">数値列が検出されると自動表示されます</span>';
+  document.getElementById('mixedWithinBadges').innerHTML=badges;
+}
+
+function updateWithinPreview(){
+  const aLv = parseInt(document.getElementById('withinALevels').value)||2;
+  const bLv = parseInt(document.getElementById('withinBLevels').value)||3;
+  const faName = document.getElementById('withinFaName').value||'Factor A';
+  const fbName = document.getElementById('withinFbName').value||'Factor B';
+  const needed = aLv*bLv;
+  if(!G.numCols.length){
+    document.getElementById('withinPreview').innerHTML='<span style="color:#999">ファイルをアップロードすると列が表示されます</span>';
+    return;
+  }
+  const {aNames,bNames} = extractWithinNames(G.numCols,aLv,bLv);
+  let html=`<strong>検出: ${G.numCols.length}列 ／ 必要: ${needed}列</strong><br>`;
+  if(G.numCols.length < needed){
+    html+=`<span style="color:#c0392b">⚠️ 列数が不足しています（${needed}列必要）</span>`;
+  } else {
+    for(let ai=0;ai<aLv;ai++){
+      html+=`<strong>${faName}: ${aNames[ai]}</strong> → `;
+      html+=bNames.map(b=>`<span class="lbadge">${b}</span>`).join(' ')+' (';
+      html+=bNames.map((_,bi)=>G.numCols[ai*bLv+bi]).join(', ')+`)<br>`;
+    }
+  }
+  document.getElementById('withinPreview').innerHTML=html;
+}
+
+function extractWithinNames(cols, aLv, bLv){
+  const usedCols = cols.slice(0, aLv*bLv);
+  const hasDot = usedCols.every(c=>c.includes('.'));
+  if(hasDot){
+    const tryA = Array.from({length:aLv},(_,i)=>usedCols[i*bLv].split('.')[0]);
+    const tryB = usedCols.slice(0,bLv).map(c=>c.split('.').slice(1).join('.'));
+    if(new Set(tryA).size===aLv && new Set(tryB).size===bLv) return {aNames:tryA,bNames:tryB};
+  }
+  return {
+    aNames: Array.from({length:aLv},(_,i)=>`A${i+1}`),
+    bNames: usedCols.slice(0,bLv)
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAIN DISPATCH
+// ═══════════════════════════════════════════════════════
+function runAnova(){
+  const design = document.querySelector('input[name="design"]:checked').value;
+  let rows, fa, fb;
+
+  if(design==='between'){
+    const dv=document.getElementById('dvSel').value;
+    fa=document.getElementById('faSel').value;
+    fb=document.getElementById('fbSel').value;
+    if(fa===fb){alert('第1因子と第2因子に異なる変数を選択してください');return;}
+    rows=G.data.map(r=>({dv:parseFloat(r[dv]),fa:String(r[fa]).trim(),fb:String(r[fb]).trim(),subj:null}))
+              .filter(r=>!isNaN(r.dv)&&r.fa&&r.fb);
+
+  } else if(design==='mixed'){
+    const betweenCol = document.getElementById('mixedBetweenSel').value;
+    const withinCols = G.numCols.filter(c=>c!==betweenCol);
+    if(!withinCols.length){alert('Within-subjects用の数値列が見つかりません');return;}
+    fa = document.getElementById('mixedFaName').value.trim() || betweenCol;
+    fb = document.getElementById('mixedFbName').value.trim() || 'Factor B';
+    rows=[];
+    G.data.forEach((row,idx)=>{
+      const faVal=String(row[betweenCol]).trim();
+      withinCols.forEach(col=>{
+        const dv=parseFloat(row[col]);
+        if(!isNaN(dv)) rows.push({dv,fa:faVal,fb:col,subj:`S${idx+1}`});
+      });
+    });
+
+  } else { // within
+    const aLv=parseInt(document.getElementById('withinALevels').value)||2;
+    const bLv=parseInt(document.getElementById('withinBLevels').value)||3;
+    fa=document.getElementById('withinFaName').value.trim()||'Factor A';
+    fb=document.getElementById('withinFbName').value.trim()||'Factor B';
+    if(G.numCols.length < aLv*bLv){alert(`${aLv}×${bLv}=${aLv*bLv}列が必要ですが、${G.numCols.length}列しかありません`);return;}
+    const {aNames,bNames}=extractWithinNames(G.numCols,aLv,bLv);
+    rows=[];
+    G.data.forEach((row,idx)=>{
+      let colIdx=0;
+      for(let ai=0;ai<aLv;ai++) for(let bi=0;bi<bLv;bi++){
+        const dv=parseFloat(row[G.numCols[colIdx]]);
+        if(!isNaN(dv)) rows.push({dv,fa:aNames[ai],fb:bNames[bi],subj:`S${idx+1}`});
+        colIdx++;
+      }
+    });
+  }
+
+  if(!rows||rows.length<4){alert('データが少なすぎます');return;}
+
+  let res;
+  if(design==='between') res=computeBetween(rows,fa,fb);
+  else if(design==='within') res=computeWithin(rows,fa,fb);
+  else res=computeMixed(rows,fa,fb);
+
+  renderAssumptions(res);
+  renderDesc(res);
+  renderAnova(res);
+  renderPosthoc(res);
+  renderSME(res);
+  renderAPA(res);
+  renderBTS(res);
+  renderCharts(res);
+  document.getElementById('results').style.display='block';
+  setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),100);
+}
+
+// ═══════════════════════════════════════════════════════
+//  COMPUTE: BETWEEN
+// ═══════════════════════════════════════════════════════
+function computeBetween(rows,fa,fb){
+  const faLvl=[...new Set(rows.map(r=>r.fa))].sort();
+  const fbLvl=[...new Set(rows.map(r=>r.fb))].sort();
+  const N=rows.length,a=faLvl.length,b=fbLvl.length;
+  const cs={};
+  faLvl.forEach(av=>fbLvl.forEach(bv=>{
+    const vals=rows.filter(r=>r.fa===av&&r.fb===bv).map(r=>r.dv);
+    cs[`${av}|||${bv}`]={vals,n:vals.length,mean:vals.length?mean(vals):0,sd:vals.length?sd(vals):0};
+  }));
+  const grandMean=mean(rows.map(r=>r.dv));
+  let ssA=0; faLvl.forEach(av=>{const v=rows.filter(r=>r.fa===av).map(r=>r.dv); ssA+=v.length*(mean(v)-grandMean)**2;});
+  let ssB=0; fbLvl.forEach(bv=>{const v=rows.filter(r=>r.fb===bv).map(r=>r.dv); ssB+=v.length*(mean(v)-grandMean)**2;});
+  let ssCells=0; faLvl.forEach(av=>fbLvl.forEach(bv=>{const c=cs[`${av}|||${bv}`]; ssCells+=c.n*(c.mean-grandMean)**2;}));
+  let ssE=0; faLvl.forEach(av=>fbLvl.forEach(bv=>{const c=cs[`${av}|||${bv}`]; c.vals.forEach(v=>ssE+=(v-c.mean)**2);}));
+  const ssAB=ssCells-ssA-ssB;
+  const dfA=a-1,dfB=b-1,dfAB=dfA*dfB,dfE=N-a*b;
+  const msA=ssA/dfA,msB=ssB/dfB,msAB=ssAB/dfAB,msE=ssE/dfE;
+  const FA=msA/msE,FB=msB/msE,FAB=msAB/msE;
+  const pA=fPval(FA,dfA,dfE),pB=fPval(FB,dfB,dfE),pAB=fPval(FAB,dfAB,dfE);
+  const eta2A=ssA/(ssA+ssE),eta2B=ssB/(ssB+ssE),eta2AB=ssAB/(ssAB+ssE);
+  const om2A=Math.max(0,(ssA-dfA*msE)/(ssA+ssE+msE));
+  const om2B=Math.max(0,(ssB-dfB*msE)/(ssB+ssE+msE));
+  const om2AB=Math.max(0,(ssAB-dfAB*msE)/(ssAB+ssE+msE));
+  return {design:'between',rows,faLvl,fbLvl,cs,grandMean,N,a,b,
+    ssA,ssB,ssAB,ssE,dfA,dfB,dfAB,dfE,msA,msB,msAB,msE,
+    FA,FB,FAB,pA,pB,pAB,eta2A,eta2B,eta2AB,om2A,om2B,om2AB,fa,fb,
+    msE_A:msE,dfE_A:dfE,msE_B:msE,dfE_B:dfE,msE_AB:msE,dfE_AB:dfE};
+}
+
+// ═══════════════════════════════════════════════════════
+//  COMPUTE: WITHIN (Fully RM)
+// ═══════════════════════════════════════════════════════
+function computeWithin(rows,fa,fb){
+  const faLvl=[...new Set(rows.map(r=>r.fa))].sort();
+  const fbLvl=[...new Set(rows.map(r=>r.fb))].sort();
+  const subjects=[...new Set(rows.map(r=>r.subj))].sort();
+  const n=subjects.length,a=faLvl.length,b=fbLvl.length,N=rows.length;
+  const grandMean=mean(rows.map(r=>r.dv));
+  const cs={};
+  faLvl.forEach(av=>fbLvl.forEach(bv=>{
+    const vals=rows.filter(r=>r.fa===av&&r.fb===bv).map(r=>r.dv);
+    cs[`${av}|||${bv}`]={vals,n:vals.length,mean:vals.length?mean(vals):0,sd:vals.length?sd(vals):0};
+  }));
+  const faM={},fbM={},subjM={};
+  faLvl.forEach(av=>{faM[av]=mean(rows.filter(r=>r.fa===av).map(r=>r.dv));});
+  fbLvl.forEach(bv=>{fbM[bv]=mean(rows.filter(r=>r.fb===bv).map(r=>r.dv));});
+  subjects.forEach(s=>{subjM[s]=mean(rows.filter(r=>r.subj===s).map(r=>r.dv));});
+  const subjAM={};
+  subjects.forEach(s=>faLvl.forEach(av=>{const v=rows.filter(r=>r.subj===s&&r.fa===av).map(r=>r.dv); subjAM[`${s}|||${av}`]=v.length?mean(v):NaN;}));
+  const subjBM={};
+  subjects.forEach(s=>fbLvl.forEach(bv=>{const v=rows.filter(r=>r.subj===s&&r.fb===bv).map(r=>r.dv); subjBM[`${s}|||${bv}`]=v.length?mean(v):NaN;}));
+  let ssA=0; faLvl.forEach(av=>ssA+=n*b*(faM[av]-grandMean)**2);
+  let ssB=0; fbLvl.forEach(bv=>ssB+=n*a*(fbM[bv]-grandMean)**2);
+  let ssAB=0; faLvl.forEach(av=>fbLvl.forEach(bv=>ssAB+=n*(cs[`${av}|||${bv}`].mean-faM[av]-fbM[bv]+grandMean)**2));
+  let ssSubj=0; subjects.forEach(s=>ssSubj+=a*b*(subjM[s]-grandMean)**2);
+  let ssAxS=0; subjects.forEach(s=>faLvl.forEach(av=>{const m=subjAM[`${s}|||${av}`]; if(!isNaN(m)) ssAxS+=b*(m-faM[av]-subjM[s]+grandMean)**2;}));
+  let ssBxS=0; subjects.forEach(s=>fbLvl.forEach(bv=>{const m=subjBM[`${s}|||${bv}`]; if(!isNaN(m)) ssBxS+=a*(m-fbM[bv]-subjM[s]+grandMean)**2;}));
+  let ssTotal=0; rows.forEach(r=>ssTotal+=(r.dv-grandMean)**2);
+  const ssABxS=Math.max(0,ssTotal-ssSubj-ssA-ssB-ssAB-ssAxS-ssBxS);
+  const dfA=a-1,dfB=b-1,dfAB=(a-1)*(b-1),dfSubj=n-1;
+  const dfAxS=(a-1)*(n-1),dfBxS=(b-1)*(n-1),dfABxS=(a-1)*(b-1)*(n-1);
+  const msA=ssA/dfA,msB=ssB/dfB,msAB=ssAB/dfAB;
+  const msAxS=ssAxS/dfAxS,msBxS=ssBxS/dfBxS,msABxS=ssABxS/dfABxS;
+  const FA=msA/msAxS,FB=msB/msBxS,FAB=msAB/msABxS;
+  const pA=fPval(FA,dfA,dfAxS),pB=fPval(FB,dfB,dfBxS),pAB=fPval(FAB,dfAB,dfABxS);
+  const eta2A=ssA/(ssA+ssAxS),eta2B=ssB/(ssB+ssBxS),eta2AB=ssAB/(ssAB+ssABxS);
+  const om2A=Math.max(0,(ssA-dfA*msAxS)/(ssA+ssAxS+msAxS));
+  const om2B=Math.max(0,(ssB-dfB*msBxS)/(ssB+ssBxS+msBxS));
+  const om2AB=Math.max(0,(ssAB-dfAB*msABxS)/(ssAB+ssABxS+msABxS));
+
+  // ── Mauchly's Sphericity Test ──
+  let mauchly_A={skip:true}, mauchly_B={skip:true};
+  if(a>2){
+    const X_A=subjects.map(s=>faLvl.map(av=>{const v=subjAM[`${s}|||${av}`]; return isNaN(v)?0:v;}));
+    mauchly_A=mauchlyTest(X_A);
+  }
+  if(b>2){
+    const X_B=subjects.map(s=>fbLvl.map(bv=>{const v=subjBM[`${s}|||${bv}`]; return isNaN(v)?0:v;}));
+    mauchly_B=mauchlyTest(X_B);
+  }
+  // GG-corrected df and p
+  let pA_gg=pA,pB_gg=pB,pAB_gg=pAB;
+  let dfA_gg=dfA,dfAxS_gg=dfAxS,dfB_gg=dfB,dfBxS_gg=dfBxS,dfAB_gg=dfAB,dfABxS_gg=dfABxS;
+  if(!mauchly_A.skip&&mauchly_A.p<.05){
+    const e=mauchly_A.eps_GG;
+    dfA_gg=+(dfA*e).toFixed(2); dfAxS_gg=+(dfAxS*e).toFixed(2);
+    pA_gg=fPval(FA,dfA_gg,dfAxS_gg);
+  }
+  if(!mauchly_B.skip&&mauchly_B.p<.05){
+    const e=mauchly_B.eps_GG;
+    dfB_gg=+(dfB*e).toFixed(2); dfBxS_gg=+(dfBxS*e).toFixed(2);
+    pB_gg=fPval(FB,dfB_gg,dfBxS_gg);
+    dfAB_gg=+(dfAB*e).toFixed(2); dfABxS_gg=+(dfABxS*e).toFixed(2);
+    pAB_gg=fPval(FAB,dfAB_gg,dfABxS_gg);
+  }
+
+  return {design:'within',rows,faLvl,fbLvl,subjects,cs,grandMean,N,a,b,n,
+    ssA,ssB,ssAB,ssSubj,ssAxS,ssBxS,ssABxS,
+    dfA,dfB,dfAB,dfSubj,dfAxS,dfBxS,dfABxS,
+    msA,msB,msAB,msAxS,msBxS,msABxS,
+    FA,FB,FAB,pA,pB,pAB,eta2A,eta2B,eta2AB,om2A,om2B,om2AB,fa,fb,
+    msE_A:msAxS,dfE_A:dfAxS,msE_B:msBxS,dfE_B:dfBxS,msE_AB:msABxS,dfE_AB:dfABxS,
+    faM,fbM,subjM,subjAM,subjBM,
+    mauchly_A,mauchly_B,
+    pA_gg,pB_gg,pAB_gg,
+    dfA_gg,dfAxS_gg,dfB_gg,dfBxS_gg,dfAB_gg,dfABxS_gg};
+}
+
+// ═══════════════════════════════════════════════════════
+//  COMPUTE: MIXED (Between × Within)
+// ═══════════════════════════════════════════════════════
+function computeMixed(rows,fa,fb){
+  const faLvl=[...new Set(rows.map(r=>r.fa))].sort();
+  const fbLvl=[...new Set(rows.map(r=>r.fb))].sort();
+  const a=faLvl.length,b=fbLvl.length;
+  const subjByGroup={};
+  faLvl.forEach(av=>{subjByGroup[av]=[...new Set(rows.filter(r=>r.fa===av).map(r=>r.subj))].sort();});
+  const allSubjects=faLvl.flatMap(av=>subjByGroup[av]);
+  const nTotal=allSubjects.length,N=rows.length;
+  const grandMean=mean(rows.map(r=>r.dv));
+  const cs={};
+  faLvl.forEach(av=>fbLvl.forEach(bv=>{
+    const vals=rows.filter(r=>r.fa===av&&r.fb===bv).map(r=>r.dv);
+    cs[`${av}|||${bv}`]={vals,n:vals.length,mean:vals.length?mean(vals):0,sd:vals.length?sd(vals):0};
+  }));
+  const faM={},fbM={},subjM={};
+  faLvl.forEach(av=>{faM[av]=mean(rows.filter(r=>r.fa===av).map(r=>r.dv));});
+  fbLvl.forEach(bv=>{fbM[bv]=mean(rows.filter(r=>r.fb===bv).map(r=>r.dv));});
+  allSubjects.forEach(s=>{subjM[s]=mean(rows.filter(r=>r.subj===s).map(r=>r.dv));});
+  let ssA=0; faLvl.forEach(av=>{const ng=subjByGroup[av].length; ssA+=ng*b*(faM[av]-grandMean)**2;});
+  let ssSubjA=0; faLvl.forEach(av=>subjByGroup[av].forEach(s=>ssSubjA+=b*(subjM[s]-faM[av])**2));
+  let ssB=0; fbLvl.forEach(bv=>ssB+=nTotal*(fbM[bv]-grandMean)**2);
+  let ssAB=0; faLvl.forEach(av=>{const ng=subjByGroup[av].length; fbLvl.forEach(bv=>ssAB+=ng*(cs[`${av}|||${bv}`].mean-faM[av]-fbM[bv]+grandMean)**2);});
+  let ssBxSubjA=0;
+  faLvl.forEach(av=>subjByGroup[av].forEach(s=>{
+    fbLvl.forEach(bv=>{
+      const obs=rows.find(r=>r.subj===s&&r.fb===bv);
+      if(obs) ssBxSubjA+=(obs.dv-cs[`${av}|||${bv}`].mean-subjM[s]+faM[av])**2;
+    });
+  }));
+  const dfA=a-1,dfSubjA=nTotal-a,dfB=b-1,dfAB=(a-1)*(b-1),dfBxSubjA=(nTotal-a)*(b-1);
+  const msA=ssA/dfA,msSubjA=ssSubjA/dfSubjA,msB=ssB/dfB,msAB=ssAB/dfAB,msBxSubjA=ssBxSubjA/dfBxSubjA;
+  const FA=msA/msSubjA,FB=msB/msBxSubjA,FAB=msAB/msBxSubjA;
+  const pA=fPval(FA,dfA,dfSubjA),pB=fPval(FB,dfB,dfBxSubjA),pAB=fPval(FAB,dfAB,dfBxSubjA);
+  const eta2A=ssA/(ssA+ssSubjA),eta2B=ssB/(ssB+ssBxSubjA),eta2AB=ssAB/(ssAB+ssBxSubjA);
+  const om2A=Math.max(0,(ssA-dfA*msSubjA)/(ssA+ssSubjA+msSubjA));
+  const om2B=Math.max(0,(ssB-dfB*msBxSubjA)/(ssB+ssBxSubjA+msBxSubjA));
+  const om2AB=Math.max(0,(ssAB-dfAB*msBxSubjA)/(ssAB+ssBxSubjA+msBxSubjA));
+
+  // ── Mauchly's Sphericity Test for within factor (B) ──
+  let mauchly_B={skip:true};
+  if(b>2){
+    const X_B=allSubjects.map(s=>fbLvl.map(bv=>{
+      const obs=rows.find(r=>r.subj===s&&r.fb===bv);
+      return obs?obs.dv:0;
+    }));
+    mauchly_B=mauchlyTest(X_B);
+  }
+  let pB_gg=pB,pAB_gg=pAB;
+  let dfB_gg=dfB,dfBxSubjA_gg=dfBxSubjA,dfAB_gg=dfAB;
+  if(!mauchly_B.skip&&mauchly_B.p<.05){
+    const e=mauchly_B.eps_GG;
+    dfB_gg=+(dfB*e).toFixed(2); dfBxSubjA_gg=+(dfBxSubjA*e).toFixed(2);
+    pB_gg=fPval(FB,dfB_gg,dfBxSubjA_gg);
+    dfAB_gg=+(dfAB*e).toFixed(2);
+    pAB_gg=fPval(FAB,dfAB_gg,dfBxSubjA_gg);
+  }
+
+  return {design:'mixed',rows,faLvl,fbLvl,allSubjects,subjByGroup,cs,grandMean,N,a,b,nTotal,
+    ssA,ssSubjA,ssB,ssAB,ssBxSubjA,dfA,dfSubjA,dfB,dfAB,dfBxSubjA,
+    msA,msSubjA,msB,msAB,msBxSubjA,FA,FB,FAB,pA,pB,pAB,
+    eta2A,eta2B,eta2AB,om2A,om2B,om2AB,fa,fb,
+    msE_A:msSubjA,dfE_A:dfSubjA,msE_B:msBxSubjA,dfE_B:dfBxSubjA,msE_AB:msBxSubjA,dfE_AB:dfBxSubjA,
+    faM,fbM,subjM,subjByGroup,
+    mauchly_B,
+    pB_gg,pAB_gg,dfB_gg,dfBxSubjA_gg,dfAB_gg};
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: ASSUMPTIONS
+// ═══════════════════════════════════════════════════════
+function renderAssumptions(r){
+  const groups=[];
+  r.faLvl.forEach(av=>r.fbLvl.forEach(bv=>groups.push(r.cs[`${av}|||${bv}`].vals)));
+  const lev=levenesTest(groups);
+  const levPass=lev.p>.05;
+  const cellNs=r.faLvl.flatMap(av=>r.fbLvl.map(bv=>r.cs[`${av}|||${bv}`].n));
+  const minN=Math.min(...cellNs);
+  const balanced=cellNs.every(n=>n===cellNs[0]);
+
+  // Build Mauchly section for within/mixed
+  let sphericityHtml='';
+  if(r.design==='within'||r.design==='mixed'){
+    const tests=[];
+    if(r.design==='within'){
+      if(r.mauchly_A&&!r.mauchly_A.skip) tests.push({name:r.fa,k:r.a,m:r.mauchly_A});
+      if(r.mauchly_B&&!r.mauchly_B.skip) tests.push({name:r.fb,k:r.b,m:r.mauchly_B});
+    } else {
+      if(r.mauchly_B&&!r.mauchly_B.skip) tests.push({name:r.fb,k:r.b,m:r.mauchly_B});
+    }
+    const twoLvlNotes=[];
+    if(r.design==='within'){
+      if(r.a<=2) twoLvlNotes.push(`${r.fa}（2水準 → 球面性の問題なし）`);
+      if(r.b<=2) twoLvlNotes.push(`${r.fb}（2水準 → 球面性の問題なし）`);
+    } else {
+      if(r.b<=2) twoLvlNotes.push(`${r.fb}（2水準 → 球面性の問題なし）`);
+    }
+
+    let inner='';
+    tests.forEach(({name,k,m})=>{
+      const pass=m.p>=.05;
+      const ggLine=!pass
+        ?`<div style="margin-top:6px;font-size:12.5px;color:#c0392b">
+            → 球面性に違反。Greenhouse-Geisser ε = <strong>${m.eps_GG.toFixed(3)}</strong>,&nbsp;
+            Huynh-Feldt ε = <strong>${m.eps_HF.toFixed(3)}</strong><br>
+            ANOVAテーブルのdf・pはGG補正済みで表示されます（† 付き）
+          </div>`
+        :`<div style="margin-top:4px;font-size:12px;color:#1e8449">
+            ε_GG = ${m.eps_GG.toFixed(3)}, ε_HF = ${m.eps_HF.toFixed(3)}（補正不要）
+          </div>`;
+      inner+=`<div style="padding:10px 0;border-bottom:1px solid #e8e8e8">
+        <strong>${name}</strong>（k = ${k}水準）:
+        Mauchly's <em>W</em> = ${m.W.toFixed(3)},
+        χ²(${m.df}) = ${m.chiSq.toFixed(3)},
+        <em>p</em> = ${pFmt(m.p)}&ensp;
+        <span class="badge ${pass?'badge-pass':'badge-fail'}">${pass?'✅ 球面性 OK':'⚠️ 球面性違反'}</span>
+        ${ggLine}
+      </div>`;
+    });
+    if(twoLvlNotes.length) inner+=`<p style="font-size:12px;color:#888;margin-top:8px">${twoLvlNotes.join('&ensp;/&ensp;')}</p>`;
+    if(!inner) inner='<p style="color:#999;font-size:12px">3水準以上のWithin因子がないため、球面性検定は不要です。</p>';
+    sphericityHtml=`<div class="assump-item assump-full"><h4>球面性（Sphericity）— Mauchly検定</h4>${inner}</div>`;
+  }
+
+  document.getElementById('assumpGrid').innerHTML=`
+  <div class="assump-item">
+    <h4>等分散性 — Levene検定（Brown-Forsythe法）</h4>
+    <p>F(${lev.df1}, ${lev.df2}) = ${lev.F.toFixed(3)}, p = ${lev.p<.001?'< .001':lev.p.toFixed(3)}</p>
+    <p style="margin-top:6px"><span class="badge ${levPass?'badge-pass':'badge-fail'}">${levPass?'✅ 等分散性の仮定を満たす':'⚠️ 等分散性の仮定に違反する可能性'}</span></p>
+  </div>
+  <div class="assump-item">
+    <h4>正規性 / バランス</h4>
+    <p>各セル正規性: QQプロットまたはShapiro-Wilk推奨</p>
+    <p>最小セルn = ${minN} / ${balanced?'✅ バランス型':'⚠️ アンバランス型（Type II SS使用）'}</p>
+    <p style="margin-top:6px"><span class="badge badge-warn">⚠️ 研究者が確認</span></p>
+  </div>
+  ${sphericityHtml}
+  <div class="assump-item">
+    <h4>観測の独立性</h4>
+    <p>${r.design==='between'?'各参加者が独立した1つの条件にのみ割り当てられていることを確認してください。':'参加者間の独立性（Betweenデザイン部分）を確認してください。'}</p>
+    <p style="margin-top:6px"><span class="badge badge-warn">⚠️ デザインに基づいて研究者が確認</span></p>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: DESCRIPTIVE
+// ═══════════════════════════════════════════════════════
+function renderDesc(r){
+  let html=`<table><thead><tr>
+    <th>${r.fa}</th><th>${r.fb}</th>
+    <th class="num">n</th><th class="num">M</th><th class="num">SD</th>
+    <th class="num">95% CI [LL, UL]</th>
+  </tr></thead><tbody>`;
+  r.faLvl.forEach(av=>{
+    r.fbLvl.forEach((bv,bi)=>{
+      const c=r.cs[`${av}|||${bv}`];
+      const [lo,hi]=ci95(c.mean,c.sd,c.n);
+      html+=`<tr><td>${bi===0?av:''}</td><td>${bv}</td>
+        <td class="num">${c.n}</td><td class="num">${c.mean.toFixed(2)}</td>
+        <td class="num">${c.sd.toFixed(2)}</td>
+        <td class="num">[${lo.toFixed(2)}, ${hi.toFixed(2)}]</td></tr>`;
+    });
+  });
+  html+=`<tr class="subtotal"><td colspan="2">Marginal: ${r.fa}</td><td></td><td></td><td></td><td></td></tr>`;
+  r.faLvl.forEach(av=>{const v=r.rows.filter(x=>x.fa===av).map(x=>x.dv),m=mean(v),s=sd(v),n=v.length,[lo,hi]=ci95(m,s,n);
+    html+=`<tr><td colspan="2" style="padding-left:20px">${av}</td><td class="num">${n}</td><td class="num">${m.toFixed(2)}</td><td class="num">${s.toFixed(2)}</td><td class="num">[${lo.toFixed(2)}, ${hi.toFixed(2)}]</td></tr>`;});
+  html+=`<tr class="subtotal"><td colspan="2">Marginal: ${r.fb}</td><td></td><td></td><td></td><td></td></tr>`;
+  r.fbLvl.forEach(bv=>{const v=r.rows.filter(x=>x.fb===bv).map(x=>x.dv),m=mean(v),s=sd(v),n=v.length,[lo,hi]=ci95(m,s,n);
+    html+=`<tr><td colspan="2" style="padding-left:20px">${bv}</td><td class="num">${n}</td><td class="num">${m.toFixed(2)}</td><td class="num">${s.toFixed(2)}</td><td class="num">[${lo.toFixed(2)}, ${hi.toFixed(2)}]</td></tr>`;});
+  html+=`</tbody></table>`;
+  document.getElementById('descTable').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: ANOVA TABLE
+// ═══════════════════════════════════════════════════════
+function renderAnova(r){
+  const hdr=`<table><thead><tr><th>Source</th><th class="num">SS</th><th class="num">df</th><th class="num">MS</th><th class="num">F</th><th class="num">p</th><th class="num">η²ₚ</th><th class="num">ω²ₚ</th></tr></thead><tbody>`;
+
+  // fx: label,ss,df,ms,F,p,e2,w2, optional {df:corrDf, p:corrP} for GG correction
+  const fx=(label,ss,df,ms,F,p,e2,w2,gg=null)=>{
+    const dfStr=gg?`${gg.df}†`:`${df}`;
+    const pUse=gg?gg.p:p;
+    return `<tr><td class="bold">${label}</td><td class="num">${ss.toFixed(3)}</td><td class="num">${dfStr}</td><td class="num">${ms.toFixed(3)}</td><td class="num">${F.toFixed(2)}</td><td class="num ${pUse<.05?'sig':''}">${pFmt(pUse)}</td><td class="num">${e2.toFixed(3)}</td><td class="num">${w2.toFixed(3)}</td></tr>`;
+  };
+  // fe: label,ss,df,ms, optional corrDf (shown with †)
+  const fe=(label,ss,df,ms,corrDf=null)=>{
+    const dfStr=corrDf!==null?`${corrDf}†`:`${df}`;
+    return `<tr class="subtotal"><td>${label}</td><td class="num">${ss.toFixed(3)}</td><td class="num">${dfStr}</td><td class="num">${ms.toFixed(3)}</td><td></td><td></td><td></td><td></td></tr>`;
+  };
+  const fs=(label)=>`<tr class="section-row"><td colspan="8">${label}</td></tr>`;
+
+  let html=hdr;
+  let ggFootnote='';
+
+  if(r.design==='between'){
+    html+=fx(r.fa,r.ssA,r.dfA,r.msA,r.FA,r.pA,r.eta2A,r.om2A);
+    html+=fx(r.fb,r.ssB,r.dfB,r.msB,r.FB,r.pB,r.eta2B,r.om2B);
+    html+=fx(`${r.fa} × ${r.fb}`,r.ssAB,r.dfAB,r.msAB,r.FAB,r.pAB,r.eta2AB,r.om2AB);
+    html+=fe('Error',r.ssE,r.dfE,r.msE);
+
+  } else if(r.design==='within'){
+    const ggA = r.mauchly_A&&!r.mauchly_A.skip&&r.mauchly_A.p<.05;
+    const ggB = r.mauchly_B&&!r.mauchly_B.skip&&r.mauchly_B.p<.05;
+    html+=fs('Within-subjects effects');
+    html+=fx(r.fa,r.ssA,r.dfA,r.msA,r.FA,r.pA,r.eta2A,r.om2A, ggA?{df:r.dfA_gg,p:r.pA_gg}:null);
+    html+=fe(`  Error (${r.fa}×Subjects)`,r.ssAxS,r.dfAxS,r.msAxS, ggA?r.dfAxS_gg:null);
+    html+=fx(r.fb,r.ssB,r.dfB,r.msB,r.FB,r.pB,r.eta2B,r.om2B, ggB?{df:r.dfB_gg,p:r.pB_gg}:null);
+    html+=fe(`  Error (${r.fb}×Subjects)`,r.ssBxS,r.dfBxS,r.msBxS, ggB?r.dfBxS_gg:null);
+    html+=fx(`${r.fa}×${r.fb}`,r.ssAB,r.dfAB,r.msAB,r.FAB,r.pAB,r.eta2AB,r.om2AB, ggB?{df:r.dfAB_gg,p:r.pAB_gg}:null);
+    html+=fe(`  Error (${r.fa}×${r.fb}×Subj)`,r.ssABxS,r.dfABxS,r.msABxS, ggB?r.dfABxS_gg:null);
+    html+=fs('Between-subjects'); html+=fe('Subjects',r.ssSubj,r.dfSubj,r.ssSubj/r.dfSubj);
+    const notes=[];
+    if(ggA) notes.push(`${r.fa}: ε_GG = ${r.mauchly_A.eps_GG.toFixed(3)}`);
+    if(ggB) notes.push(`${r.fb}: ε_GG = ${r.mauchly_B.eps_GG.toFixed(3)}`);
+    if(notes.length) ggFootnote=`<tr><td colspan="8" style="font-size:11px;color:#888;padding:6px 10px">† Greenhouse-Geisser補正済み（${notes.join('、')}）</td></tr>`;
+
+  } else { // mixed
+    const ggB = r.mauchly_B&&!r.mauchly_B.skip&&r.mauchly_B.p<.05;
+    html+=fs('Between-subjects');
+    html+=fx(r.fa,r.ssA,r.dfA,r.msA,r.FA,r.pA,r.eta2A,r.om2A);
+    html+=fe('  Subjects within groups (error)',r.ssSubjA,r.dfSubjA,r.msSubjA);
+    html+=fs('Within-subjects');
+    html+=fx(r.fb,r.ssB,r.dfB,r.msB,r.FB,r.pB,r.eta2B,r.om2B, ggB?{df:r.dfB_gg,p:r.pB_gg}:null);
+    html+=fx(`${r.fa}×${r.fb}`,r.ssAB,r.dfAB,r.msAB,r.FAB,r.pAB,r.eta2AB,r.om2AB, ggB?{df:r.dfAB_gg,p:r.pAB_gg}:null);
+    html+=fe(`  ${r.fb}×Subj/groups (error)`,r.ssBxSubjA,r.dfBxSubjA,r.msBxSubjA, ggB?r.dfBxSubjA_gg:null);
+    if(ggB) ggFootnote=`<tr><td colspan="8" style="font-size:11px;color:#888;padding:6px 10px">† Greenhouse-Geisser補正済み（${r.fb}: ε_GG = ${r.mauchly_B.eps_GG.toFixed(3)}）</td></tr>`;
+  }
+
+  html+=ggFootnote;
+  html+=`</tbody></table>`;
+  document.getElementById('anovaTable').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: POST-HOC
+// ═══════════════════════════════════════════════════════
+function renderPosthoc(r){
+  function getSubjMeansA(lv){
+    if(r.design==='between') return r.rows.filter(x=>x.fa===lv).map(x=>x.dv);
+    const subs=r.design==='within'?r.subjects:r.allSubjects;
+    return subs.map(s=>{const v=r.rows.filter(x=>x.subj===s&&x.fa===lv).map(x=>x.dv);return v.length?mean(v):NaN;}).filter(v=>!isNaN(v));
+  }
+  function getSubjMeansB(lv){
+    if(r.design==='between') return r.rows.filter(x=>x.fb===lv).map(x=>x.dv);
+    const subs=r.design==='within'?r.subjects:r.allSubjects;
+    return subs.map(s=>{const v=r.rows.filter(x=>x.subj===s&&x.fb===lv).map(x=>x.dv);return v.length?mean(v):NaN;}).filter(v=>!isNaN(v));
+  }
+
+  function pairTable(levels,getVals,label,isPaired,msE,dfE,groupAssign=null){
+    const pairs=[];
+    for(let i=0;i<levels.length;i++) for(let j=i+1;j<levels.length;j++) pairs.push([levels[i],levels[j]]);
+    const m=pairs.length;
+    let t=`<p class="section-label">${label}</p>
+    <div class="posthoc-wrap"><table><thead><tr>
+      <th>比較</th><th class="num">M差</th><th class="num">SE</th>
+      <th class="num">95% CI of M差</th><th class="num">t</th><th class="num">df</th>
+      <th class="num">p (uncorr)</th><th class="num">p (Bonf)</th>
+      <th class="num">Cohen's d</th><th class="num">95% CI of d</th><th class="num">解釈</th><th class="num">有意</th>
+    </tr></thead><tbody>`;
+    let lastDfT=dfE;
+    pairs.forEach(([a,b])=>{
+      const va=getVals(a),vb=getVals(b);
+      const na=va.length,nb=vb.length,ma=mean(va),mb=mean(vb),diff=ma-mb;
+      let tstat,se,df_t,p_raw;
+      if(isPaired){
+        const diffs=va.map((v,i)=>v-vb[i]);
+        const md=mean(diffs);
+        if(groupAssign){
+          // Mixed design: pooled within-group paired t (anovakun方式)
+          // 各グループ内で差分スコアを中心化→プール → SE = sqrt(MS_w / N), df = N - a
+          const groups=[...new Set(groupAssign.filter(x=>x!==null))];
+          let ssW=0;
+          groups.forEach(g=>{
+            const gi=groupAssign.map((x,k)=>x===g?k:-1).filter(k=>k>=0);
+            const gd=gi.map(k=>diffs[k]);
+            const gm=mean(gd);
+            gd.forEach(d=>ssW+=(d-gm)**2);
+          });
+          const Nt=diffs.length,ag=groups.length;
+          const msW=ssW/(Nt-ag);
+          se=Math.sqrt(msW/Nt); df_t=Nt-ag;
+        } else {
+          const sd_d=sd(diffs);
+          se=sd_d/Math.sqrt(na); df_t=na-1;
+        }
+        tstat=md/se;
+        p_raw=2*(1-jStat.studentt.cdf(Math.abs(tstat),df_t));
+      } else {
+        se=Math.sqrt(msE*(1/na+1/nb)); tstat=diff/se; df_t=dfE;
+        p_raw=2*(1-jStat.centralF.cdf(tstat**2,1,df_t));
+      }
+      lastDfT=df_t;
+      const p_bon=Math.min(1,p_raw*m);
+      const tcrit=jStat.studentt.inv(0.975,df_t);
+      const ciLo=(diff-tcrit*se).toFixed(2),ciHi=(diff+tcrit*se).toFixed(2);
+      const sa=sd(va),sb_=sd(vb),sd_p=Math.sqrt(((na-1)*sa**2+(nb-1)*sb_**2)/(na+nb-2));
+      const d=Math.abs(diff)/sd_p,dLbl=d>=0.8?'large':d>=0.5?'medium':d>=0.2?'small':'negligible';
+      const tcrit_d=jStat.studentt.inv(0.975,na+nb-2);
+      const se_d=Math.sqrt((na+nb)/(na*nb)+d**2/(2*(na+nb-2)));
+      const dLo=Math.max(0,d-tcrit_d*se_d).toFixed(3),dHi=(d+tcrit_d*se_d).toFixed(3);
+      t+=`<tr><td>${a} vs ${b}</td><td class="num">${diff.toFixed(2)}</td><td class="num">${se.toFixed(3)}</td>
+        <td class="num">[${ciLo}, ${ciHi}]</td><td class="num">${tstat.toFixed(3)}</td><td class="num">${df_t}</td>
+        <td class="num ${p_raw<.05?'sig':''}">${pFmt(p_raw)}</td>
+        <td class="num ${p_bon<.05?'sig':''}">${pFmt(p_bon)}</td>
+        <td class="num ${p_bon<.05?'sig':''}">${d.toFixed(3)}</td>
+        <td class="num">[${dLo}, ${dHi}]</td>
+        <td class="num">${dLbl}</td>
+        <td class="num">${p_bon<.05?'<span class="sig">*</span>':'ns'}</td></tr>`;
+    });
+    const nt=isPaired
+      ?(groupAssign?`グループ内プールpaired t（pooled within-group, df=${lastDfT}）`:`対応ありt検定（paired）`)
+      :`対応なし（pooled MS_error, df=${dfE}）`;
+    t+=`</tbody></table></div><p style="font-size:11px;color:#888;margin-top:6px">* p &lt; .05（Bonferroni補正後）。${nt}。Cohen's d: Mizumoto方式（SD_pooled）。95% CI of d: Hedges &amp; Olkin (1985)。small≥.20, medium≥.50, large≥.80。</p>`;
+    return t;
+  }
+
+  let html='';
+  const isPairedA=r.design==='within',isPairedB=r.design==='within'||r.design==='mixed';
+  // Mixed design: within因子のpost-hocにグループ情報を渡す（pooled within-group方式）
+  let bGroupAssign=null;
+  if(r.design==='mixed'){
+    bGroupAssign=r.allSubjects.map(s=>{
+      for(const gLv of r.faLvl){if((r.subjByGroup[gLv]||[]).includes(s))return gLv;}
+      return null;
+    });
+  }
+  if(r.pA<.05&&r.faLvl.length>2) html+=pairTable(r.faLvl,getSubjMeansA,`主効果 ${r.fa} の対比較`,isPairedA,r.msE_A,r.dfE_A);
+  else if(r.pA<.05&&r.faLvl.length===2) html+=`<p class="section-label">主効果 ${r.fa}</p><div class="alert">2水準のため対比較は不要（ANOVAの結果をそのまま報告）</div>`;
+  else html+=`<p class="section-label">主効果 ${r.fa}</p><div class="alert">主効果が有意でないため対比較は実施しません（p = ${pFmt(r.pA)}）</div>`;
+  if(r.pB<.05&&r.fbLvl.length>2) html+=pairTable(r.fbLvl,getSubjMeansB,`主効果 ${r.fb} の対比較`,isPairedB,r.msE_B,r.dfE_B,bGroupAssign);
+  else if(r.pB<.05&&r.fbLvl.length===2) html+=`<p class="section-label">主効果 ${r.fb}</p><div class="alert">2水準のため対比較は不要</div>`;
+  else html+=`<p class="section-label">主効果 ${r.fb}</p><div class="alert">主効果が有意でないため対比較は実施しません（p = ${pFmt(r.pB)}）</div>`;
+  document.getElementById('posthocContent').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: SIMPLE MAIN EFFECTS
+// ═══════════════════════════════════════════════════════
+function renderSME(r){
+  if(r.pAB>=.05){document.getElementById('smeContent').innerHTML=`<div class="alert">交互作用が有意でないため（p = ${pFmt(r.pAB)}）、単純主効果分析は実施しません。</div>`;return;}
+  function sme(fixFac,fixLvl,varyFac,varyLvl,getVals,msErr,dfErr){
+    let t=`<p class="section-label">${fixFac}の各水準における${varyFac}の効果</p>
+    <table><thead><tr><th>${fixFac}</th><th class="num">SS</th><th class="num">df</th><th class="num">MS</th><th class="num">F</th><th class="num">p</th><th class="num">η²ₚ</th></tr></thead><tbody>`;
+    fixLvl.forEach(fv=>{
+      const gm=mean(varyLvl.flatMap(vv=>getVals(fv,vv)));
+      let ss=0; varyLvl.forEach(vv=>{const v=getVals(fv,vv); ss+=v.length*(mean(v)-gm)**2;});
+      const df=varyLvl.length-1,ms=ss/df,F=ms/msErr,p=fPval(F,df,dfErr),eta=ss/(ss+msErr*dfErr);
+      t+=`<tr><td>${fv}</td><td class="num">${ss.toFixed(3)}</td><td class="num">${df}</td><td class="num">${ms.toFixed(3)}</td><td class="num">${F.toFixed(2)}</td><td class="num ${p<.05?'sig':''}">${pFmt(p)}</td><td class="num">${eta.toFixed(3)}</td></tr>`;
+    });
+    t+=`</tbody></table><p style="font-size:11px;color:#888;margin-top:6px">誤差項: MS = ${msErr.toFixed(3)} (df = ${dfErr})</p>`;
+    return t;
+  }
+  let html=`<div class="alert-info">交互作用が有意（p ${pFmt(r.pAB)}）なため、単純主効果分析を実施します。</div>`;
+  html+=sme(r.fb,r.fbLvl,r.fa,r.faLvl,(fv,vv)=>r.cs[`${vv}|||${fv}`].vals,r.msE_AB,r.dfE_AB);
+  html+='<br>';
+  html+=sme(r.fa,r.faLvl,r.fb,r.fbLvl,(fv,vv)=>r.cs[`${fv}|||${vv}`].vals,r.msE_AB,r.dfE_AB);
+  document.getElementById('smeContent').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: APA TEXT
+// ═══════════════════════════════════════════════════════
+function renderAPA(r){
+  const el=e=>e>=.14?'large':e>=.06?'medium':'small';
+  const pp=p=>p<.001?'< .001':`= ${p.toFixed(3)}`;
+  const dn=r.design==='between'?`A ${r.a}×${r.b} between-subjects factorial`
+           :r.design==='within'?`A ${r.a}×${r.b} fully within-subjects (repeated measures)`
+           :`A ${r.a} (${r.fa}, between) × ${r.b} (${r.fb}, within) mixed factorial`;
+  const errA=r.design==='between'?r.dfE:(r.pA_gg!==undefined&&r.pA_gg!==r.pA?r.dfAxS_gg:r.dfE_A);
+  const errB=r.design==='between'?r.dfE:(r.pB_gg!==undefined&&r.pB_gg!==r.pB?(r.design==='mixed'?r.dfBxSubjA_gg:r.dfBxS_gg):r.dfE_B);
+  const errAB=r.design==='between'?r.dfE:r.dfE_AB;
+  const Nstr=r.design==='within'?`n = ${r.n}`:(r.design==='mixed'?`n = ${r.nTotal}`:`N = ${r.N}`);
+
+  // Use GG-corrected p when applicable
+  const pA_use = (r.pA_gg!==undefined)?r.pA_gg:r.pA;
+  const pB_use = (r.pB_gg!==undefined)?r.pB_gg:r.pB;
+  const pAB_use = (r.pAB_gg!==undefined)?r.pAB_gg:r.pAB;
+  const dfA_use = (r.dfA_gg!==undefined)?r.dfA_gg:r.dfA;
+  const dfB_use = (r.dfB_gg!==undefined)?r.dfB_gg:r.dfB;
+  const dfAB_use = (r.dfAB_gg!==undefined)?r.dfAB_gg:r.dfAB;
+
+  const lines=[
+    `${dn} analysis of variance (ANOVA) was conducted on the dependent variable (${Nstr}).`,``,
+    `The main effect of ${r.fa} was ${pA_use<.05?'statistically significant':'not significant'}, F(${dfA_use}, ${errA}) = ${r.FA.toFixed(2)}, p ${pp(pA_use)}, η²ₚ = ${r.eta2A.toFixed(3)}, ω²ₚ = ${r.om2A.toFixed(3)}${pA_use<.05?', indicating a '+el(r.eta2A)+' effect.':'.'}`,``,
+    `The main effect of ${r.fb} was ${pB_use<.05?'statistically significant':'not significant'}, F(${dfB_use}, ${errB}) = ${r.FB.toFixed(2)}, p ${pp(pB_use)}, η²ₚ = ${r.eta2B.toFixed(3)}, ω²ₚ = ${r.om2B.toFixed(3)}${pB_use<.05?', indicating a '+el(r.eta2B)+' effect.':'.'}`,``,
+    `The ${r.fa}×${r.fb} interaction was ${pAB_use<.05?'statistically significant':'not significant'}, F(${dfAB_use}, ${errAB}) = ${r.FAB.toFixed(2)}, p ${pp(pAB_use)}, η²ₚ = ${r.eta2AB.toFixed(3)}, ω²ₚ = ${r.om2AB.toFixed(3)}${pAB_use<.05?', indicating a '+el(r.eta2AB)+' effect. Simple main effects analyses were conducted (see table below).':'.'}`,
+  ];
+
+  // Add sphericity notes
+  if(r.design!=='between'){
+    const sphNotes=[];
+    const addSphNote=(name,m)=>{
+      if(!m||m.skip) return;
+      if(m.p<.05){
+        sphNotes.push(`Mauchly's test indicated that the assumption of sphericity had been violated for the main effect of ${name}, χ²(${m.df}) = ${m.chiSq.toFixed(2)}, p ${pp(m.p)}; therefore, degrees of freedom were corrected using Greenhouse-Geisser estimates of sphericity (ε = ${m.eps_GG.toFixed(3)}).`);
+      } else {
+        sphNotes.push(`Mauchly's test confirmed the sphericity assumption for ${name} was met, W = ${m.W.toFixed(3)}, χ²(${m.df}) = ${m.chiSq.toFixed(2)}, p ${pp(m.p)}.`);
+      }
+    };
+    if(r.design==='within'){
+      addSphNote(r.fa,r.mauchly_A);
+      addSphNote(r.fb,r.mauchly_B);
+    } else {
+      addSphNote(r.fb,r.mauchly_B);
+    }
+    if(sphNotes.length){lines.push('');lines.push(sphNotes.join(' '));}
+  }
+
+  const plain=lines.join('\n');
+  document.getElementById('apaText').innerHTML=lines.join('\n').replace(/F\(([0-9.]+), ([0-9.]+)\)/g,'<em>F</em>($1, $2)').replace(/ p /g,' <em>p</em> ');
+  document.getElementById('apaText').dataset.plain=plain;
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER: BTS
+// ═══════════════════════════════════════════════════════
+function renderBTS(r){
+  const f=n=>Number(n).toFixed(3);
+  let fHtml=`<div class="formula-block"><h4>Grand Mean</h4><div class="formula">Grand Mean = ΣX / N</div><br><span class="computed">= ${Number(r.grandMean).toFixed(2)} (N = ${r.N})</span></div>`;
+  if(r.design==='between'){
+    fHtml+=`<div class="formula-block"><h4>F統計量（共通誤差項）</h4>
+      <div class="formula">F = MS_effect / MS_error</div><br>
+      <span class="computed">F_${r.fa} = ${f(r.msA)} / ${f(r.msE)} = ${r.FA.toFixed(2)}, p ${pFmt(r.pA)}</span><br>
+      <span class="computed">F_${r.fb} = ${f(r.msB)} / ${f(r.msE)} = ${r.FB.toFixed(2)}, p ${pFmt(r.pB)}</span><br>
+      <span class="computed">F_interaction = ${f(r.msAB)} / ${f(r.msE)} = ${r.FAB.toFixed(2)}, p ${pFmt(r.pAB)}</span></div>`;
+  } else if(r.design==='within'){
+    fHtml+=`<div class="formula-block"><h4>F統計量（各効果に固有の誤差項）</h4>
+      <div class="formula">F_A = MS_A / MS_A×S &nbsp; F_B = MS_B / MS_B×S &nbsp; F_AB = MS_AB / MS_AB×S</div><br>
+      <span class="computed">F_${r.fa} = ${f(r.msA)} / ${f(r.msAxS)} = ${r.FA.toFixed(2)}, p ${pFmt(r.pA)}</span><br>
+      <span class="computed">F_${r.fb} = ${f(r.msB)} / ${f(r.msBxS)} = ${r.FB.toFixed(2)}, p ${pFmt(r.pB)}</span><br>
+      <span class="computed">F_interaction = ${f(r.msAB)} / ${f(r.msABxS)} = ${r.FAB.toFixed(2)}, p ${pFmt(r.pAB)}</span></div>`;
+    // Mauchly detail
+    const mauHtml=(name,m)=>{
+      if(!m||m.skip) return `<span class="computed">${name}（2水準 → 球面性検定不要）</span><br>`;
+      return `<span class="computed">${name}: W = ${m.W.toFixed(3)}, χ²(${m.df}) = ${m.chiSq.toFixed(3)}, p = ${pFmt(m.p)} → ε_GG = ${m.eps_GG.toFixed(3)}, ε_HF = ${m.eps_HF.toFixed(3)}</span><br>`;
+    };
+    fHtml+=`<div class="formula-block"><h4>Mauchly球面性検定（実装アルゴリズム）</h4>
+      <div class="formula">C = Helmert contrasts (k×(k−1)); Z = X·C; S = cov(Z)</div>
+      <div class="formula">W = det(S) / (tr(S)/(k−1))^(k−1) &nbsp; χ² = −(n−1)·f·ln(W) &nbsp; df = k(k−1)/2 − 1</div>
+      <div class="formula">ε_GG = tr(Σ_sc)² / [(k−1)·Σ(σ²_sc)] &nbsp; (Σ_sc: doubly-centered S)</div><br>
+      ${mauHtml(r.fa,r.mauchly_A)}${mauHtml(r.fb,r.mauchly_B)}</div>`;
+  } else {
+    fHtml+=`<div class="formula-block"><h4>F統計量（Mixed Designの2種類の誤差項）</h4>
+      <div class="formula">F_A (Between) = MS_A / MS_Subj/A &nbsp; F_B, F_AB (Within) = MS / MS_B×Subj/A</div><br>
+      <span class="computed">F_${r.fa} = ${f(r.msA)} / ${f(r.msSubjA)} = ${r.FA.toFixed(2)}, p ${pFmt(r.pA)}</span><br>
+      <span class="computed">F_${r.fb} = ${f(r.msB)} / ${f(r.msBxSubjA)} = ${r.FB.toFixed(2)}, p ${pFmt(r.pB)}</span><br>
+      <span class="computed">F_interaction = ${f(r.msAB)} / ${f(r.msBxSubjA)} = ${r.FAB.toFixed(2)}, p ${pFmt(r.pAB)}</span></div>`;
+    if(r.mauchly_B&&!r.mauchly_B.skip){
+      fHtml+=`<div class="formula-block"><h4>Mauchly球面性検定（Within因子: ${r.fb}）</h4>
+        <span class="computed">W = ${r.mauchly_B.W.toFixed(3)}, χ²(${r.mauchly_B.df}) = ${r.mauchly_B.chiSq.toFixed(3)}, p = ${pFmt(r.mauchly_B.p)}</span><br>
+        <span class="computed">ε_GG = ${r.mauchly_B.eps_GG.toFixed(3)}, ε_HF = ${r.mauchly_B.eps_HF.toFixed(3)}</span></div>`;
+    }
+  }
+  fHtml+=`<div class="formula-block"><h4>効果量</h4>
+    <div class="formula">η²ₚ = SS_effect / (SS_effect + SS_error_for_effect)</div>
+    <div class="formula">ω²ₚ = (SS_effect − df×MS_error) / (SS_effect + SS_error + MS_error)</div><br>
+    <span class="computed">η²ₚ_${r.fa}=${f(r.eta2A)}, ω²ₚ_${r.fa}=${f(r.om2A)}</span><br>
+    <span class="computed">η²ₚ_${r.fb}=${f(r.eta2B)}, ω²ₚ_${r.fb}=${f(r.om2B)}</span><br>
+    <span class="computed">η²ₚ_interaction=${f(r.eta2AB)}, ω²ₚ_interaction=${f(r.om2AB)}</span></div>
+  <div class="formula-block"><h4>Cohen's d（Mizumoto方式）</h4>
+    <div class="formula">SD_pooled = √(((n₁−1)SD₁² + (n₂−1)SD₂²)/(n₁+n₂−2))</div>
+    <div class="formula">d = |M₁−M₂| / SD_pooled &nbsp; SE(d) = √((n₁+n₂)/(n₁n₂) + d²/(2(n₁+n₂−2)))</div></div>`;
+
+  let rCode=`<span class="cm"># ${r.design==='between'?'Between×Between':r.design==='within'?'Within×Within (Repeated Measures)':'Mixed (Between×Within)'}</span>
+<span class="kw">library</span>(<span class="nm">ez</span>); <span class="kw">library</span>(<span class="nm">effectsize</span>); <span class="kw">library</span>(<span class="nm">emmeans</span>)
+
+df &lt;- <span class="fn">read.csv</span>(<span class="str">"your_data.csv"</span>)
+`;
+  if(r.design==='between'){
+    rCode+=`df$<span class="nm">${r.fa}</span> &lt;- <span class="fn">factor</span>(df$<span class="nm">${r.fa}</span>); df$<span class="nm">${r.fb}</span> &lt;- <span class="fn">factor</span>(df$<span class="nm">${r.fb}</span>)
+model &lt;- <span class="fn">lm</span>(<span class="nm">DV</span> ~ <span class="nm">${r.fa}</span> * <span class="nm">${r.fb}</span>, data=df)
+car::<span class="fn">Anova</span>(model, type=<span class="str">"II"</span>)
+<span class="fn">eta_squared</span>(model, partial=<span class="nm">TRUE</span>); <span class="fn">omega_squared</span>(model, partial=<span class="nm">TRUE</span>)`;
+  } else if(r.design==='within'){
+    rCode+=`<span class="cm"># Wide → Long 変換が必要な場合: tidyr::pivot_longer()</span>
+<span class="cm"># df はLong形式: Subject, ${r.fa}, ${r.fb}, DV</span>
+result &lt;- <span class="fn">ezANOVA</span>(data=df, dv=DV, wid=Subject,
+  within=.(<span class="nm">${r.fa}</span>, <span class="nm">${r.fb}</span>), type=<span class="nm">2</span>, detailed=<span class="nm">TRUE</span>)
+<span class="fn">print</span>(result)  <span class="cm"># Mauchly球面性検定とGG補正ε付きで出力</span>`;
+  } else {
+    rCode+=`<span class="cm"># df はLong形式: Subject, ${r.fa}(between), ${r.fb}(within), DV</span>
+result &lt;- <span class="fn">ezANOVA</span>(data=df, dv=DV, wid=Subject,
+  between=<span class="nm">${r.fa}</span>, within=<span class="nm">${r.fb}</span>, type=<span class="nm">2</span>, detailed=<span class="nm">TRUE</span>)
+<span class="fn">print</span>(result)  <span class="cm"># Mauchly球面性検定とGG補正ε付きで出力</span>`;
+  }
+
+  const pyFa = r.fa.replace(/'/g,"\\'"), pyFb = r.fb.replace(/'/g,"\\'");
+  let pyCode=`<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> pingouin <span class="kw">as</span> pg
+
+<span class="cm"># データ読み込み（Long形式: Subject, ${r.fa}, ${r.fb}, DV）</span>
+df = pd.<span class="fn">read_csv</span>(<span class="str">'your_data.csv'</span>)
+
+`;
+  if(r.design==='between'){
+    pyCode+=`<span class="cm"># Between-subjects: 球面性検定は不要</span>
+aov = pg.<span class="fn">anova</span>(df, dv=<span class="str">'DV'</span>, between=[<span class="str">'${pyFa}'</span>, <span class="str">'${pyFb}'</span>], detailed=<span class="nm">True</span>)
+<span class="fn">print</span>(aov)`;
+  } else if(r.design==='within'){
+    pyCode+=`<span class="cm"># Mauchly球面性検定 (pingouin)</span>
+<span class="cm"># Factor A の球面性（水準数 > 2 の場合）</span>
+sph_A = pg.<span class="fn">sphericity</span>(df, dv=<span class="str">'DV'</span>, subject=<span class="str">'Subject'</span>, within=<span class="str">'${pyFa}'</span>)
+<span class="fn">print</span>(<span class="str">'Sphericity (${pyFa}):'</span>, sph_A)
+
+<span class="cm"># Factor B の球面性（水準数 > 2 の場合）</span>
+sph_B = pg.<span class="fn">sphericity</span>(df, dv=<span class="str">'DV'</span>, subject=<span class="str">'Subject'</span>, within=<span class="str">'${pyFb}'</span>)
+<span class="fn">print</span>(<span class="str">'Sphericity (${pyFb}):'</span>, sph_B)
+<span class="cm"># 返値: W (Mauchly statistic), chi2, dof, pval, eps (GG epsilon)</span>
+
+<span class="cm"># Two-way Within-subjects ANOVA with GG correction</span>
+aov = pg.<span class="fn">rm_anova</span>(df, dv=<span class="str">'DV'</span>, within=[<span class="str">'${pyFa}'</span>, <span class="str">'${pyFb}'</span>],
+           subject=<span class="str">'Subject'</span>, correction=<span class="str">'auto'</span>, detailed=<span class="nm">True</span>)
+<span class="fn">print</span>(aov)
+<span class="cm"># correction='auto': 球面性違反時に自動でGG補正を適用</span>`;
+  } else {
+    pyCode+=`<span class="cm"># Mauchly球面性検定（Within因子: ${pyFb}）</span>
+sph_B = pg.<span class="fn">sphericity</span>(df, dv=<span class="str">'DV'</span>, subject=<span class="str">'Subject'</span>, within=<span class="str">'${pyFb}'</span>)
+<span class="fn">print</span>(<span class="str">'Sphericity (${pyFb}):'</span>, sph_B)
+<span class="cm"># 返値: W, chi2, dof, pval, eps (Greenhouse-Geisser epsilon)</span>
+
+<span class="cm"># Mixed ANOVA</span>
+aov = pg.<span class="fn">mixed_anova</span>(df, dv=<span class="str">'DV'</span>,
+              within=<span class="str">'${pyFb}'</span>, between=<span class="str">'${pyFa}'</span>,
+              subject=<span class="str">'Subject'</span>, correction=<span class="str">'auto'</span>)
+<span class="fn">print</span>(aov)`;
+  }
+
+  document.getElementById('btsContent').innerHTML=`
+  <div class="bts-tabs">
+    <button class="bts-tab active" onclick="btsSwitchTab(this,'bts-f')">📐 数式と計算過程</button>
+    <button class="bts-tab" onclick="btsSwitchTab(this,'bts-r')">🔵 等価なRコード</button>
+    <button class="bts-tab" onclick="btsSwitchTab(this,'bts-py')">🐍 等価なPythonコード</button>
+  </div>
+  <div id="bts-f" class="bts-panel active">${fHtml}</div>
+  <div id="bts-r" class="bts-panel">
+    <button class="copy-code-btn" onclick="copyCode('bts-rc')">📋 コピー</button>
+    <pre class="code-block" id="bts-rc">${rCode}</pre>
+    <p style="font-size:11px;color:#888">必要パッケージ: <code>ez, effectsize, emmeans</code>（Wide→Long変換: <code>tidyr::pivot_longer()</code>）</p>
+  </div>
+  <div id="bts-py" class="bts-panel">
+    <button class="copy-code-btn" onclick="copyCode('bts-pyc')">📋 コピー</button>
+    <pre class="code-block" id="bts-pyc">${pyCode}</pre>
+    <p style="font-size:11px;color:#888">必要パッケージ: <code>pip install pingouin pandas</code> &ensp;|&ensp; <code>pg.sphericity()</code>のepsはGreenhouse-Geisser ε</p>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  CHARTS
+// ═══════════════════════════════════════════════════════
+const COLORS=['#2196F3','#FF9800','#4CAF50','#E91E63','#9C27B0','#00BCD4','#FF5722','#795548'];
+const CD={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{position:'right',labels:{font:{size:13},padding:16,boxWidth:14}},title:{display:true,font:{size:15,weight:'bold'},padding:{bottom:18}}},
+  scales:{x:{title:{display:true,font:{size:13,weight:'600'},padding:{top:8}},ticks:{font:{size:12}},grid:{color:'rgba(0,0,0,0.06)'}},
+          y:{title:{display:true,font:{size:13,weight:'600'},padding:{bottom:8}},ticks:{font:{size:12}},grid:{color:'rgba(0,0,0,0.06)'},beginAtZero:false}}};
+
+// Error bar plugin factory — must create a new instance per chart
+function makeEbPlugin(){
+  return {id:'eb',afterDatasetsDraw(chart){
+    const ctx=chart.ctx;
+    chart.data.datasets.forEach((ds,di)=>{
+      if(!ds.errorBars) return;
+      chart.getDatasetMeta(di).data.forEach((pt,i)=>{
+        if(!pt) return;
+        const x=pt.x, ys=chart.scales.y;
+        const yT=ys.getPixelForValue(ds.data[i]+ds.errorBars[i]);
+        const yB=ys.getPixelForValue(ds.data[i]-ds.errorBars[i]);
+        ctx.save();
+        ctx.strokeStyle=COLORS[di%8];
+        ctx.lineWidth=1.8;
+        ctx.beginPath();
+        ctx.moveTo(x,yT);ctx.lineTo(x,yB);
+        ctx.moveTo(x-6,yT);ctx.lineTo(x+6,yT);
+        ctx.moveTo(x-6,yB);ctx.lineTo(x+6,yB);
+        ctx.stroke();
+        ctx.restore();
+      });
+    });
+  }};
+}
+
+function renderCharts(r){
+  if(lineCI) lineCI.destroy();
+  if(barCI) barCI.destroy();
+
+  // Figure 1: Line chart with ±SE error bars
+  const lDS=r.faLvl.map((av,i)=>({
+    label:av,
+    borderColor:COLORS[i%8],
+    backgroundColor:COLORS[i%8],
+    data:r.fbLvl.map(bv=>+r.cs[`${av}|||${bv}`].mean.toFixed(3)),
+    errorBars:r.fbLvl.map(bv=>{const c=r.cs[`${av}|||${bv}`];return +(c.sd/Math.sqrt(c.n)).toFixed(3);}),
+    tension:.1,pointRadius:7,borderWidth:2.5
+  }));
+  lineCI=new Chart(document.getElementById('lineChart'),{type:'line',data:{labels:r.fbLvl,datasets:lDS},
+    options:{...CD,plugins:{...CD.plugins,title:{...CD.plugins.title,text:`Figure 1. Interaction Plot (±SE)`},
+      legend:{...CD.plugins.legend,title:{display:true,text:r.fa,font:{size:12,weight:'700'}}}},
+      scales:{x:{...CD.scales.x,title:{...CD.scales.x.title,text:r.fb}},y:{...CD.scales.y,title:{...CD.scales.y.title,text:'Mean'}}}},
+    plugins:[makeEbPlugin()]});
+
+  // Figure 2: Bar chart with ±SE error bars
+  const bDS=r.faLvl.map((av,i)=>{const col=COLORS[i%8];
+    return{label:av,backgroundColor:col+'bb',borderColor:col,borderWidth:1.8,
+      data:r.fbLvl.map(bv=>+r.cs[`${av}|||${bv}`].mean.toFixed(3)),
+      errorBars:r.fbLvl.map(bv=>{const c=r.cs[`${av}|||${bv}`];return +(c.sd/Math.sqrt(c.n)).toFixed(3);})}; });
+  barCI=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:r.fbLvl,datasets:bDS},
+    options:{...CD,plugins:{...CD.plugins,title:{...CD.plugins.title,text:`Figure 2. Mean (±SE) by Group`},
+      legend:{...CD.plugins.legend,title:{display:true,text:r.fa,font:{size:12,weight:'700'}}}},
+      scales:{x:{...CD.scales.x,title:{...CD.scales.x.title,text:r.fb}},y:{...CD.scales.y,title:{...CD.scales.y.title,text:'Mean'}}}},
+    plugins:[makeEbPlugin()]});
+}
+function downloadChart(id,fn){
+  const c=document.getElementById(id),s=3;
+  const o=document.createElement('canvas');o.width=c.width*s;o.height=c.height*s;
+  const ctx=o.getContext('2d');ctx.scale(s,s);ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(c,0,0);
+  const a=document.createElement('a');a.download=fn;a.href=o.toDataURL('image/png',1);a.click();
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════
+function btsSwitchTab(btn,id){
+  document.querySelectorAll('.bts-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.bts-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');document.getElementById(id).classList.add('active');
+}
+function copyCode(id){navigator.clipboard.writeText(document.getElementById(id).innerText||document.getElementById(id).textContent).then(()=>alert('コードをコピーしました！'));}
+function copyAPA(){navigator.clipboard.writeText(document.getElementById('apaText').dataset.plain).then(()=>alert('APA結果文をコピーしました！'));}
+function copyTableAsExcel(divId){
+  const div=document.getElementById(divId),tables=div.querySelectorAll('table');
+  if(!tables.length){alert('コピーするテーブルがありません');return;}
+  let tsv='';
+  tables.forEach((tbl,ti)=>{
+    if(ti>0) tsv+='\n\n';
+    tbl.querySelectorAll('tr').forEach(row=>{
+      const cells=row.querySelectorAll('th,td');
+      tsv+=Array.from(cells).map(c=>{const sp=parseInt(c.getAttribute('colspan')||'1');
+        return (c.innerText||c.textContent).replace(/\t/g,' ').replace(/\n/g,' ').trim()+(sp>1?'\t'.repeat(sp-1):'');
+      }).join('\t')+'\n';
+    });
+  });
+  navigator.clipboard.writeText(tsv).then(()=>alert('テーブルをコピーしました！\nExcelに貼り付けてください（Ctrl+V / ⌘+V）')).catch(()=>alert('コピーに失敗しました'));
+}
+
+function mean(a){return a.reduce((s,v)=>s+v,0)/a.length}
+function sd(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1));}
+function ci95(m,s,n){const t=jStat.studentt.inv(0.975,n-1);return[m-t*s/Math.sqrt(n),m+t*s/Math.sqrt(n)];}
+function fPval(F,d1,d2){return 1-jStat.centralF.cdf(F,d1,d2)}
+function pFmt(p){return p<.001?'< .001':p.toFixed(3)}
+function levenesTest(groups){
+  const allZ=[],gM=[];
+  groups.forEach(g=>{const med=jStat.median(g),z=g.map(v=>Math.abs(v-med));gM.push(mean(z));allZ.push(z);});
+  const gZ=mean(allZ.flat()),k=groups.length,N=allZ.flat().length;
+  let ssB=0;allZ.forEach((z,i)=>ssB+=z.length*(gM[i]-gZ)**2);
+  let ssW=0;allZ.forEach((z,i)=>z.forEach(v=>ssW+=(v-gM[i])**2));
+  const d1=k-1,d2=N-k,F=(ssB/d1)/(ssW/d2);
+  return{F,df1:d1,df2:d2,p:fPval(F,d1,d2)};
+}
+
+// ═══════════════════════════════════════════════════════
+//  MATRIX MATH FOR MAUCHLY'S TEST
+// ═══════════════════════════════════════════════════════
+
+// Helmert contrast matrix: k × (k-1), orthonormal
+function helmertContrasts(k){
+  const C=Array.from({length:k},()=>Array(k-1).fill(0));
+  for(let j=0;j<k-1;j++){
+    const s=Math.sqrt((j+1)*(j+2));
+    for(let i=0;i<=j;i++) C[i][j]=-1/s;
+    C[j+1][j]=(j+1)/s;
+  }
+  return C;
+}
+
+// Matrix multiplication: A(m×n) × B(n×p) → m×p
+function matMul(A,B){
+  const m=A.length,n=A[0].length,p=B[0].length;
+  return Array.from({length:m},(_,i)=>
+    Array.from({length:p},(_,k)=>
+      A[i].reduce((s,_,j)=>s+A[i][j]*B[j][k],0)));
+}
+
+// Sample covariance matrix of Z (n×p) → p×p
+function covMatrix(Z){
+  const n=Z.length,p=Z[0].length;
+  const mu=Array.from({length:p},(_,j)=>Z.reduce((s,r)=>s+r[j],0)/n);
+  const S=Array.from({length:p},()=>Array(p).fill(0));
+  for(let i=0;i<n;i++) for(let j=0;j<p;j++) for(let k=0;k<p;k++) S[j][k]+=(Z[i][j]-mu[j])*(Z[i][k]-mu[k]);
+  return S.map(r=>r.map(v=>v/(n-1)));
+}
+
+// Trace of square matrix
+function matTrace(A){return A.reduce((s,r,i)=>s+r[i],0);}
+
+// Determinant via Gaussian elimination with partial pivoting
+function matDet(A){
+  const n=A.length,M=A.map(r=>[...r]);
+  let det=1;
+  for(let i=0;i<n;i++){
+    let mx=i;
+    for(let k=i+1;k<n;k++) if(Math.abs(M[k][i])>Math.abs(M[mx][i])) mx=k;
+    if(mx!==i){[M[i],M[mx]]=[M[mx],M[i]];det*=-1;}
+    if(Math.abs(M[i][i])<1e-12) return 0;
+    det*=M[i][i];
+    for(let k=i+1;k<n;k++){const f=M[k][i]/M[i][i];for(let j=i;j<n;j++) M[k][j]-=f*M[i][j];}
+  }
+  return det;
+}
+
+// Greenhouse-Geisser epsilon from covariance matrix S (k×k)
+function computeGGEpsilon(S,k){
+  const rm=S.map(r=>r.reduce((a,b)=>a+b,0)/k);
+  const gm=rm.reduce((a,b)=>a+b,0)/k;
+  // Doubly-centered S
+  const Sc=S.map((r,i)=>r.map((v,j)=>v-rm[i]-rm[j]+gm));
+  const tr=matTrace(Sc);
+  let sq=0; for(let i=0;i<k;i++) for(let j=0;j<k;j++) sq+=Sc[i][j]**2;
+  if(Math.abs(sq)<1e-12) return 1.0;
+  return Math.max(1/(k-1),Math.min(1.0,tr**2/((k-1)*sq)));
+}
+
+// Huynh-Feldt epsilon
+function computeHFEpsilon(epsGG,n,k){
+  const num=n*(k-1)*epsGG-2;
+  const den=(k-1)*(n-1-(k-1)*epsGG);
+  if(den<=0) return 1.0;
+  return Math.min(1.0,num/den);
+}
+
+// Mauchly's W test
+// X: 2D array n×k (n subjects, k within-factor levels)
+function mauchlyTest(X){
+  const n=X.length,k=X[0].length;
+  if(k<=2) return{W:1,chiSq:0,df:0,p:1,eps_GG:1,eps_HF:1,skip:true};
+  // Transform using Helmert contrasts
+  const C=helmertContrasts(k);
+  const Z=matMul(X,C); // n × (k-1)
+  const S=covMatrix(Z);
+  const q=k-1;
+  const trS=matTrace(S);
+  if(trS<=0) return{W:0,chiSq:0,df:0,p:1,eps_GG:1/(k-1),eps_HF:1/(k-1),skip:false};
+  const detS=matDet(S);
+  // Mauchly's W
+  const W=Math.max(0,detS/Math.pow(trS/q,q));
+  // Chi-square approximation (Box, 1954)
+  const f=1-(2*q*q+q+2)/(6*q*(n-1));
+  const chiSq=-(n-1)*f*Math.log(Math.max(W,1e-15));
+  const df=q*(q+1)/2-1;
+  const p=df>0?Math.max(0,1-jStat.chisquare.cdf(chiSq,df)):1;
+  // GG and HF epsilon from original X covariance
+  const Sx=covMatrix(X);
+  const eps_GG=computeGGEpsilon(Sx,k);
+  const eps_HF=computeHFEpsilon(eps_GG,n,k);
+  return{W,chiSq,df,p,eps_GG,eps_HF,skip:false};
+}
+</script>
+</body>
+</html>
