@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jstat/1.9.6/jstat.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0
 body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f7fa;color:#333;font-size:14px}
 header{background:#2c3e50;color:#fff;padding:20px 40px}
 header h1{font-size:22px;font-weight:700}
@@ -584,10 +584,10 @@ function computeMixed(rows,fa,fb){
   faLvl.forEach(av=>{faM[av]=mean(rows.filter(r=>r.fa===av).map(r=>r.dv));});
   fbLvl.forEach(bv=>{fbM[bv]=mean(rows.filter(r=>r.fb===bv).map(r=>r.dv));});
   allSubjects.forEach(s=>{subjM[s]=mean(rows.filter(r=>r.subj===s).map(r=>r.dv));});
-  let ssA=0; faLvl.forEach(av=>{const ng=subjByGroup[av].length; ssA+=ng*b*(faM[av]-grandMean)**2;});
+  const nh=a/faLvl.reduce((s,av)=>s+1/subjByGroup[av].length,0);const fbM_unw={};fbLvl.forEach(bv=>{fbM_unw[bv]=faLvl.reduce((s,av)=>s+cs[`${av}|||${bv}`].mean,0)/a;});const grandMean_unw=fbLvl.reduce((s,bv)=>s+fbM_unw[bv],0)/b;let ssA=0;faLvl.forEach(av=>{ssA+=nh*b*(faM[av]-grandMean_unw)**2;});
   let ssSubjA=0; faLvl.forEach(av=>subjByGroup[av].forEach(s=>ssSubjA+=b*(subjM[s]-faM[av])**2));
-  let ssB=0; fbLvl.forEach(bv=>ssB+=nTotal*(fbM[bv]-grandMean)**2);
-  let ssAB=0; faLvl.forEach(av=>{const ng=subjByGroup[av].length; fbLvl.forEach(bv=>ssAB+=ng*(cs[`${av}|||${bv}`].mean-faM[av]-fbM[bv]+grandMean)**2);});
+  let ssB=0;fbLvl.forEach(bv=>ssB+=nh*a*(fbM_unw[bv]-grandMean_unw)**2);
+  let ssAB=0;faLvl.forEach(av=>{fbLvl.forEach(bv=>ssAB+=nh*(cs[`${av}|||${bv}`].mean-faM[av]-fbM_unw[bv]+grandMean_unw)**2);});
   let ssBxSubjA=0;
   faLvl.forEach(av=>subjByGroup[av].forEach(s=>{
     fbLvl.forEach(bv=>{
@@ -607,11 +607,7 @@ function computeMixed(rows,fa,fb){
   // ── Mauchly's Sphericity Test for within factor (B) ──
   let mauchly_B={skip:true};
   if(b>2){
-    const X_B=allSubjects.map(s=>fbLvl.map(bv=>{
-      const obs=rows.find(r=>r.subj===s&&r.fb===bv);
-      return obs?obs.dv:0;
-    }));
-    mauchly_B=mauchlyTest(X_B);
+    const X_B=allSubjects.map(s=>{const av_s=faLvl.find(av=>subjByGroup[av].includes(s));return fbLvl.map(bv=>{const obs=rows.find(r=>r.subj===s&&r.fb===bv);return obs?obs.dv-cs[`${av_s}|||${bv}`].mean:0;}); }); mauchly_B=mauchlyTest(X_B,a);
   }
   let pB_gg=pB,pAB_gg=pAB;
   let dfB_gg=dfB,dfBxSubjA_gg=dfBxSubjA,dfAB_gg=dfAB;
@@ -1296,7 +1292,7 @@ function computeHFEpsilon(epsGG,n,k){
 
 // Mauchly's W test
 // X: 2D array n×k (n subjects, k within-factor levels)
-function mauchlyTest(X){
+function mauchlyTest(X,nGroups=1){
   const n=X.length,k=X[0].length;
   if(k<=2) return{W:1,chiSq:0,df:0,p:1,eps_GG:1,eps_HF:1,skip:true};
   // Transform using Helmert contrasts
@@ -1310,14 +1306,14 @@ function mauchlyTest(X){
   // Mauchly's W
   const W=Math.max(0,detS/Math.pow(trS/q,q));
   // Chi-square approximation (Box, 1954)
-  const f=1-(2*q*q+q+2)/(6*q*(n-1));
-  const chiSq=-(n-1)*f*Math.log(Math.max(W,1e-15));
+  const f=1-(2*q*q+q+2)/(6*q*(n-nGroups));
+  const chiSq=-(n-nGroups)*f*Math.log(Math.max(W,1e-15));
   const df=q*(q+1)/2-1;
   const p=df>0?Math.max(0,1-jStat.chisquare.cdf(chiSq,df)):1;
   // GG and HF epsilon from original X covariance
   const Sx=covMatrix(X);
   const eps_GG=computeGGEpsilon(Sx,k);
-  const eps_HF=computeHFEpsilon(eps_GG,n,k);
+  const eps_HF=computeHFEpsilon(eps_GG,n-nGroups+1,k);
   return{W,chiSq,df,p,eps_GG,eps_HF,skip:false};
 }
 </script>
